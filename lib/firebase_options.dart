@@ -43,38 +43,42 @@ class DefaultFirebaseOptions {
     }
   }
 
+  // WARNING: Regenerate this file using FlutterFire CLI to load credentials securely
+  // https://firebase.flutter.dev/docs/cli/
+  // DO NOT commit credentials to version control.
+  
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBXFn_9pHJiuG18GMKm-_R465KR15BnB-E',
-    appId: '1:1034782294627:web:5b83b47fccdfa1d1f66e56',
-    messagingSenderId: '1034782294627',
-    projectId: 'dukabook-ff425',
-    authDomain: 'dukabook-ff425.firebaseapp.com',
-    storageBucket: 'dukabook-ff425.firebasestorage.app',
+    apiKey: String.fromEnvironment('FIREBASE_WEB_API_KEY'),
+    appId: String.fromEnvironment('FIREBASE_WEB_APP_ID'),
+    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    authDomain: String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
+    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCkfLWj2un5tzlDPO-oUpEancgJRepWzVI',
-    appId: '1:1034782294627:android:485a1ba42e8e155bf66e56',
-    messagingSenderId: '1034782294627',
-    projectId: 'dukabook-ff425',
-    storageBucket: 'dukabook-ff425.firebasestorage.app',
+    apiKey: String.fromEnvironment('FIREBASE_ANDROID_API_KEY'),
+    appId: String.fromEnvironment('FIREBASE_ANDROID_APP_ID'),
+    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA7gnF8-dcIlsNL7vmFdfmxzIcT1Ffq07o',
-    appId: '1:1034782294627:ios:b5ef58b74138ed7cf66e56',
-    messagingSenderId: '1034782294627',
-    projectId: 'dukabook-ff425',
-    storageBucket: 'dukabook-ff425.firebasestorage.app',
-    iosBundleId: 'com.example.dukaBook',
+    apiKey: String.fromEnvironment('FIREBASE_IOS_API_KEY'),
+    appId: String.fromEnvironment('FIREBASE_IOS_APP_ID'),
+    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+    iosBundleId: String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID'),
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyA7gnF8-dcIlsNL7vmFdfmxzIcT1Ffq07o',
-    appId: '1:1034782294627:ios:b5ef58b74138ed7cf66e56',
-    messagingSenderId: '1034782294627',
-    projectId: 'dukabook-ff425',
-    storageBucket: 'dukabook-ff425.firebasestorage.app',
-    iosBundleId: 'com.example.dukaBook',
+    apiKey: String.fromEnvironment('FIREBASE_IOS_API_KEY'),
+    appId: String.fromEnvironment('FIREBASE_IOS_APP_ID'),
+    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+    iosBundleId: String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID'),
   );
 }

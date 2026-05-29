@@ -18,8 +18,16 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# Firebase service account key (contains sensitive credentials)
+# Firebase and sensitive credentials (DO NOT COMMIT)
 scripts/service-account.json
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+*.json.example
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
 
 # Node.js
 node_modules/
