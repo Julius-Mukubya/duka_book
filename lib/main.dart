@@ -175,7 +175,40 @@ class _HomeShellState extends State<HomeShell> {
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: GestureDetector(
-              onTap: () => AuthStore.instance.signOut(),
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    title: const Row(
+                      children: [
+                        Icon(Icons.logout_rounded, color: Color(0xFF1A237E), size: 22),
+                        SizedBox(width: 10),
+                        Text('Sign Out', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                    content: const Text('Are you sure you want to sign out?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          AuthStore.instance.signOut();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A237E),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Sign Out'),
+                      ),
+                    ],
+                  ),
+                );
+              },
               child: CircleAvatar(
                 backgroundColor: Colors.white.withOpacity(0.2),
                 radius: 18,
