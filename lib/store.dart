@@ -1,75 +1,212 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'models/book.dart';
 import 'models/customer.dart';
 import 'models/sale.dart';
 
 class AppStore extends ChangeNotifier {
-  final List<Book> books = [
-    Book(id: '1', title: 'Things Fall Apart', author: 'Chinua Achebe', category: 'Fiction', price: 25000, stock: 20),
-    Book(id: '2', title: 'The River and the Source', author: 'Margaret Ogola', category: 'Fiction', price: 18000, stock: 3),
-    Book(id: '3', title: 'Weep Not Child', author: 'Ngugi wa Thiong\'o', category: 'Fiction', price: 20000, stock: 8),
-  ];
+  AppStore._();
+  static final instance = AppStore._();
 
-  final List<Customer> customers = [
-    Customer(id: '1', name: 'Alice Nakato', phone: '0701234567', location: 'Kampala'),
-  ];
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final List<Sale> sales = [];
+  List<Book> _books = [];
+  List<Customer> _customers = [];
+  List<Sale> _sales = [];
+  bool _loading = true;
+  String? _error;
+  bool _initialized = false;
 
-  // ── Inventory ──────────────────────────────────────────────
-  void addBook(Book book) {
-    books.add(book);
+  // Stream subscriptions
+  StreamSubscription? _booksSub;
+  StreamSubscription? _customersSub;
+  StreamSubscription? _salesSub;
+
+  List<Book> get books => _books;
+  List<Customer> get customers => _customers;
+  List<Sale> get sales => _sales;
+  bool get loading => _loading;
+  String? get error => _error;
+
+  List<Book> get lowStockBooks => _books.where((b) => b.stock <= 5).toList();
+  double get totalRevenue => _sales.fold(0.0, (prev, s) => prev + s.totalPrice);
+
+  /// Call after auth state is confirmed to begin listening to Firestore data.
+  /// All authenticated staff share the same top-level collections.
+  void init() {
+    if (_initialized) return;
+    _initialized = true;
+    _loading = true;
     notifyListeners();
+
+    // Listen to books collection (top-level, shared by all staff)
+    _booksSub = _firestore
+        .collection('books')
+        .orderBy('title')
+        .snapshots()
+        .listen(
+      (snapshot) {
+        _books = snapshot.docs
+            .map((doc) => Book.fromJson(doc.data(), doc.id))
+            .toList();
+        _loading = false;
+        _error = null;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = 'Failed to load books: $e';
+        _loading = false;
+        notifyListeners();
+      },
+    );
+
+    // Listen to customers collection (top-level, shared by all staff)
+    _customersSub = _firestore
+        .collection('customers')
+        .orderBy('name')
+        .snapshots()
+        .listen(
+      (snapshot) {
+        _customers = snapshot.docs
+            .map((doc) => Customer.fromJson(doc.data(), doc.id))
+            .toList();
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = 'Failed to load customers: $e';
+        notifyListeners();
+      },
+    );
+
+    // Listen to sales collection (top-level, shared by all staff)
+    _salesSub = _firestore
+        .collection('sales')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        _sales = snapshot.docs
+            .map((doc) => Sale.fromJson(doc.data(), doc.id))
+            .toList();
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = 'Failed to load sales: $e';
+        notifyListeners();
+      },
+    );
   }
 
-  void updateBook(Book updated) {
-    final i = books.indexWhere((b) => b.id == updated.id);
-    if (i != -1) {
-      books[i] = updated;
-      notifyListeners();
+  void disposeStore() {
+    _booksSub?.cancel();
+    _customersSub?.cancel();
+    _salesSub?.cancel();
+    _initialized = false;
+  }
+
+  // ── Inventory ──────────────────────────────────────────────
+
+  Future<String?> addBook(Book book) async {
+    try {
+      await _firestore.collection('books').add(book.toJson());
+      return null;
+    } catch (e) {
+      return 'Failed to add book: $e';
     }
   }
 
-  void removeBook(String id) {
-    books.removeWhere((b) => b.id == id);
-    sales.removeWhere((s) => s.bookId == id);
-    notifyListeners();
+  Future<String?> updateBook(Book updated) async {
+    try {
+      await _firestore
+          .collection('books')
+          .doc(updated.id)
+          .update(updated.toJson());
+      return null;
+    } catch (e) {
+      return 'Failed to update book: $e';
+    }
+  }
+
+  Future<String?> removeBook(String id) async {
+    try {
+      final batch = _firestore.batch();
+      batch.delete(_firestore.collection('books').doc(id));
+      // Also remove related sales
+      final salesSnap = await _firestore
+          .collection('sales')
+          .where('bookId', isEqualTo: id)
+          .get();
+      for (var doc in salesSnap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      return null;
+    } catch (e) {
+      return 'Failed to remove book: $e';
+    }
   }
 
   // ── Sales ───────────────────────────────────────────────────
-  String? recordSale(String bookId, int quantity) {
+
+  Future<String?> recordSale(String bookId, int quantity) async {
     if (quantity <= 0) return 'Quantity must be at least 1.';
-    final book = books.firstWhere((b) => b.id == bookId);
-    if (book.stock < quantity) return 'Insufficient stock.';
-    book.stock -= quantity;
-    sales.add(Sale(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      bookId: bookId,
-      bookTitle: book.title,
-      quantity: quantity,
-      totalPrice: book.price * quantity,
-      date: DateTime.now(),
-    ));
-    notifyListeners();
-    return null;
+    try {
+      final bookRef = _firestore.collection('books').doc(bookId);
+
+      // Use a transaction to decrement stock and record sale atomically
+      await _firestore.runTransaction((transaction) async {
+        final bookSnapshot = await transaction.get(bookRef);
+        if (!bookSnapshot.exists) return 'Book not found.';
+
+        final book = Book.fromJson(
+          bookSnapshot.data()!,
+          bookSnapshot.id,
+        );
+        if (book.stock < quantity) return 'Insufficient stock.';
+
+        // Decrement stock
+        transaction.update(bookRef, {'stock': book.stock - quantity});
+
+        // Record sale
+        final saleRef = _firestore.collection('sales').doc();
+        transaction.set(saleRef, Sale(
+          id: saleRef.id,
+          bookId: bookId,
+          bookTitle: book.title,
+          quantity: quantity,
+          totalPrice: book.price * quantity,
+          date: DateTime.now(),
+        ).toJson());
+
+        return null;
+      });
+      return null;
+    } catch (e) {
+      return 'Failed to record sale: $e';
+    }
   }
 
   // ── Customers ───────────────────────────────────────────────
-  String? addCustomer(Customer customer) {
+
+  Future<String?> addCustomer(Customer customer) async {
     if (!RegExp(r'^\d+$').hasMatch(customer.phone)) {
       return 'Phone number must contain digits only.';
     }
-    customers.add(customer);
-    notifyListeners();
-    return null;
+    try {
+      await _firestore.collection('customers').add(customer.toJson());
+      return null;
+    } catch (e) {
+      return 'Failed to add customer: $e';
+    }
   }
 
-  void removeCustomer(String id) {
-    customers.removeWhere((c) => c.id == id);
-    notifyListeners();
+  Future<String?> removeCustomer(String id) async {
+    try {
+      await _firestore.collection('customers').doc(id).delete();
+      return null;
+    } catch (e) {
+      return 'Failed to remove customer: $e';
+    }
   }
-
-  // ── Dashboard helpers ───────────────────────────────────────
-  List<Book> get lowStockBooks => books.where((b) => b.stock <= 5).toList();
-  double get totalRevenue => sales.fold(0, (sum, s) => sum + s.totalPrice);
 }

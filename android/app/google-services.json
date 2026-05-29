@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1034782294627",
+    "project_id": "dukabook-ff425",
+    "storage_bucket": "dukabook-ff425.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1034782294627:android:485a1ba42e8e155bf66e56",
+        "android_client_info": {
+          "package_name": "com.example.duka_book"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkfLWj2un5tzlDPO-oUpEancgJRepWzVI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

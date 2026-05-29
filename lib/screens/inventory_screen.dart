@@ -15,6 +15,7 @@ class InventoryScreen extends StatelessWidget {
     String category = existing?.category ?? 'Fiction';
     final categories = ['Fiction', 'Non-Fiction', 'Science', 'History', 'Children'];
     String? error;
+    bool saving = false;
 
     showDialog(
       context: context,
@@ -95,7 +96,7 @@ class InventoryScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
+                          onPressed: saving ? null : () => Navigator.pop(ctx),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -107,39 +108,61 @@ class InventoryScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final price = double.tryParse(priceCtrl.text) ?? 0;
-                            final stock = int.tryParse(stockCtrl.text) ?? 0;
-                            if (titleCtrl.text.trim().isEmpty) {
-                              setState(() => error = 'Title is required.');
-                              return;
-                            }
-                            if (price <= 0) {
-                              setState(() => error = 'Price must be a positive number.');
-                              return;
-                            }
-                            if (existing == null) {
-                              store.addBook(Book(
-                                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                title: titleCtrl.text.trim(),
-                                author: authorCtrl.text.trim(),
-                                category: category,
-                                price: price,
-                                stock: stock,
-                              ));
-                            } else {
-                              store.updateBook(Book(
-                                id: existing.id,
-                                title: titleCtrl.text.trim(),
-                                author: authorCtrl.text.trim(),
-                                category: category,
-                                price: price,
-                                stock: stock,
-                              ));
-                            }
-                            Navigator.pop(ctx);
-                          },
-                          child: Text(existing == null ? 'Add Book' : 'Save Changes'),
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  final price = double.tryParse(priceCtrl.text) ?? 0;
+                                  final stock = int.tryParse(stockCtrl.text) ?? 0;
+                                  if (titleCtrl.text.trim().isEmpty) {
+                                    setState(() => error = 'Title is required.');
+                                    return;
+                                  }
+                                  if (price <= 0) {
+                                    setState(() => error = 'Price must be a positive number.');
+                                    return;
+                                  }
+                                  setState(() {
+                                    saving = true;
+                                    error = null;
+                                  });
+                                  String? result;
+                                  if (existing == null) {
+                                    result = await store.addBook(Book(
+                                      id: '',
+                                      title: titleCtrl.text.trim(),
+                                      author: authorCtrl.text.trim(),
+                                      category: category,
+                                      price: price,
+                                      stock: stock,
+                                    ));
+                                  } else {
+                                    result = await store.updateBook(Book(
+                                      id: existing.id,
+                                      title: titleCtrl.text.trim(),
+                                      author: authorCtrl.text.trim(),
+                                      category: category,
+                                      price: price,
+                                      stock: stock,
+                                    ));
+                                  }
+                                  if (ctx.mounted) {
+                                    if (result != null) {
+                                      setState(() {
+                                        error = result;
+                                        saving = false;
+                                      });
+                                    } else {
+                                      Navigator.pop(ctx);
+                                    }
+                                  }
+                                },
+                          child: saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(existing == null ? 'Add Book' : 'Save Changes'),
                         ),
                       ),
                     ],
@@ -155,12 +178,18 @@ class InventoryScreen extends StatelessWidget {
 
   Color _categoryColor(String category) {
     switch (category) {
-      case 'Fiction': return const Color(0xFF1565C0);
-      case 'Non-Fiction': return const Color(0xFF2E7D32);
-      case 'Science': return const Color(0xFF00838F);
-      case 'History': return const Color(0xFF6A1B9A);
-      case 'Children': return const Color(0xFFE65100);
-      default: return Colors.grey.shade600;
+      case 'Fiction':
+        return const Color(0xFF1565C0);
+      case 'Non-Fiction':
+        return const Color(0xFF2E7D32);
+      case 'Science':
+        return const Color(0xFF00838F);
+      case 'History':
+        return const Color(0xFF6A1B9A);
+      case 'Children':
+        return const Color(0xFFE65100);
+      default:
+        return Colors.grey.shade600;
     }
   }
 
@@ -169,141 +198,152 @@ class InventoryScreen extends StatelessWidget {
     final store = context.watch<AppStore>();
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      body: store.books.isEmpty
-          ? Center(
+      body: store.loading
+          ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.menu_book_rounded, size: 64, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text('No books yet', style: TextStyle(fontSize: 16, color: Colors.grey.shade400, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 8),
-                  Text('Tap + to add your first book', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  CircularProgressIndicator(color: Color(0xFF1A237E)),
+                  SizedBox(height: 16),
+                  Text('Loading books...', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: store.books.length,
-              itemBuilder: (_, i) {
-                final b = store.books[i];
-                final catColor = _categoryColor(b.category);
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
+          : store.books.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.menu_book_rounded, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text('No books yet', style: TextStyle(fontSize: 16, color: Colors.grey.shade400, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 8),
+                      Text('Tap + to add your first book', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                    ],
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: catColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(Icons.menu_book_rounded, color: catColor, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(b.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                              const SizedBox(height: 2),
-                              Text(b.author, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: store.books.length,
+                  itemBuilder: (_, i) {
+                    final b = store.books[i];
+                    final catColor = _categoryColor(b.category);
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: catColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(Icons.menu_book_rounded, color: catColor, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _Tag(b.category, catColor),
-                                  _Tag('UGX ${b.price.toStringAsFixed(0)}', const Color(0xFF2E7D32)),
-                                  _Tag(
-                                    '${b.stock} in stock',
-                                    b.stock <= 5 ? const Color(0xFFE65100) : Colors.grey.shade600,
+                                  Text(b.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                                  const SizedBox(height: 2),
+                                  Text(b.author, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      _Tag(b.category, catColor),
+                                      _Tag('UGX ${b.price.toStringAsFixed(0)}', const Color(0xFF2E7D32)),
+                                      _Tag(
+                                        '${b.stock} in stock',
+                                        b.stock <= 5 ? const Color(0xFFE65100) : Colors.grey.shade600,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          children: [
-                            _ActionBtn(Icons.edit_rounded, const Color(0xFF1A237E), () => _showDialog(context, b)),
-                            const SizedBox(height: 4),
-                            _ActionBtn(Icons.delete_rounded, Colors.red.shade400, () {
-                              showDialog(
-                                context: context,
-                                builder: (_) => Dialog(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(16),
-                                          decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
-                                          child: Icon(Icons.delete_rounded, color: Colors.red.shade600, size: 32),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        const Text('Remove Book', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Remove "${b.title}" and its sales history?',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(color: Colors.grey.shade600),
-                                        ),
-                                        const SizedBox(height: 20),
-                                        Row(
+                            ),
+                            Column(
+                              children: [
+                                _ActionBtn(Icons.edit_rounded, const Color(0xFF1A237E), () => _showDialog(context, b)),
+                                const SizedBox(height: 4),
+                                _ActionBtn(Icons.delete_rounded, Colors.red.shade400, () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => Dialog(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Expanded(
-                                              child: OutlinedButton(
-                                                onPressed: () => Navigator.pop(context),
-                                                style: OutlinedButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                  side: BorderSide(color: Colors.grey.shade300),
-                                                ),
-                                                child: const Text('Cancel'),
-                                              ),
+                                            Container(
+                                              padding: const EdgeInsets.all(16),
+                                              decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+                                              child: Icon(Icons.delete_rounded, color: Colors.red.shade600, size: 32),
                                             ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.red.shade600,
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            const SizedBox(height: 16),
+                                            const Text('Remove Book', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Remove "${b.title}" and its sales history?',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(color: Colors.grey.shade600),
+                                            ),
+                                            const SizedBox(height: 20),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: OutlinedButton(
+                                                    onPressed: () => Navigator.pop(context),
+                                                    style: OutlinedButton.styleFrom(
+                                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                      side: BorderSide(color: Colors.grey.shade300),
+                                                    ),
+                                                    child: const Text('Cancel'),
+                                                  ),
                                                 ),
-                                                onPressed: () {
-                                                  store.removeBook(b.id);
-                                                  Navigator.pop(context);
-                                                },
-                                                child: const Text('Remove'),
-                                              ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Colors.red.shade600,
+                                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                    ),
+                                                    onPressed: () async {
+                                                      await store.removeBook(b.id);
+                                                      if (context.mounted) Navigator.pop(context);
+                                                    },
+                                                    child: const Text('Remove'),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              );
-                            }),
+                                  );
+                                }),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+                      ),
+                    );
+                  },
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showDialog(context),
         icon: const Icon(Icons.add_rounded),

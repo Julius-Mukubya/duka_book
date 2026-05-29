@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'store.dart';
 import 'auth_store.dart';
 import 'screens/dashboard_screen.dart';
@@ -8,10 +9,17 @@ import 'screens/sales_screen.dart';
 import 'screens/customers_screen.dart';
 import 'screens/signin_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  AuthStore.instance.init();
+
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppStore(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: AuthStore.instance),
+        ChangeNotifierProvider.value(value: AppStore.instance),
+      ],
       child: const DukaBookApp(),
     ),
   );
@@ -34,7 +42,8 @@ class DukaBookApp extends StatelessWidget {
         fontFamily: 'Roboto',
         cardTheme: CardThemeData(
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           color: Colors.white,
         ),
         inputDecorationTheme: InputDecorationTheme(
@@ -52,7 +61,8 @@ class DukaBookApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFF1A237E), width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -60,7 +70,8 @@ class DukaBookApp extends StatelessWidget {
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
@@ -85,6 +96,8 @@ class _AuthGateState extends State<_AuthGate> {
   void initState() {
     super.initState();
     AuthStore.instance.addListener(_onAuthChanged);
+    // If already signed in, initialize Firestore listeners
+    _initStoreIfSignedIn();
   }
 
   @override
@@ -93,7 +106,16 @@ class _AuthGateState extends State<_AuthGate> {
     super.dispose();
   }
 
-  void _onAuthChanged() => setState(() {});
+  void _onAuthChanged() {
+    setState(() {});
+    _initStoreIfSignedIn();
+  }
+
+  void _initStoreIfSignedIn() {
+    if (AuthStore.instance.isSignedIn) {
+      AppStore.instance.init();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,8 +139,18 @@ class _HomeShellState extends State<HomeShell> {
     CustomersScreen(),
   ];
 
-  final _labels = const ['Dashboard', 'Inventory', 'Sales', 'Customers'];
-  final _icons = const [Icons.dashboard_rounded, Icons.menu_book_rounded, Icons.point_of_sale_rounded, Icons.people_rounded];
+  final _labels = const [
+    'Dashboard',
+    'Inventory',
+    'Sales',
+    'Customers',
+  ];
+  final _icons = const [
+    Icons.dashboard_rounded,
+    Icons.menu_book_rounded,
+    Icons.point_of_sale_rounded,
+    Icons.people_rounded,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +166,8 @@ class _HomeShellState extends State<HomeShell> {
             const SizedBox(width: 8),
             Text(
               _labels[_index],
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
             ),
           ],
         ),
@@ -150,7 +183,11 @@ class _HomeShellState extends State<HomeShell> {
                   AuthStore.instance.currentName.isNotEmpty
                       ? AuthStore.instance.currentName[0].toUpperCase()
                       : 'DB',
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -161,7 +198,13 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, -4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: NavigationBar(
           selectedIndex: _index,

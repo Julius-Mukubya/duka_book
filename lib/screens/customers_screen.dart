@@ -12,6 +12,7 @@ class CustomersScreen extends StatelessWidget {
     final phoneCtrl = TextEditingController();
     final locationCtrl = TextEditingController();
     String? error;
+    bool saving = false;
 
     showDialog(
       context: context,
@@ -77,7 +78,7 @@ class CustomersScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx),
+                        onPressed: saving ? null : () => Navigator.pop(ctx),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -89,20 +90,37 @@ class CustomersScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
-                          final result = store.addCustomer(Customer(
-                            id: DateTime.now().millisecondsSinceEpoch.toString(),
-                            name: nameCtrl.text.trim(),
-                            phone: phoneCtrl.text.trim(),
-                            location: locationCtrl.text.trim(),
-                          ));
-                          if (result != null) {
-                            setState(() => error = result);
-                          } else {
-                            Navigator.pop(ctx);
-                          }
-                        },
-                        child: const Text('Register'),
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                setState(() {
+                                  saving = true;
+                                  error = null;
+                                });
+                                final result = await store.addCustomer(Customer(
+                                  id: '',
+                                  name: nameCtrl.text.trim(),
+                                  phone: phoneCtrl.text.trim(),
+                                  location: locationCtrl.text.trim(),
+                                ));
+                                if (ctx.mounted) {
+                                  if (result != null) {
+                                    setState(() {
+                                      error = result;
+                                      saving = false;
+                                    });
+                                  } else {
+                                    Navigator.pop(ctx);
+                                  }
+                                }
+                              },
+                        child: saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Register'),
                       ),
                     ),
                   ],
@@ -120,79 +138,92 @@ class CustomersScreen extends StatelessWidget {
     final store = context.watch<AppStore>();
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      body: store.customers.isEmpty
-          ? Center(
+      body: store.loading
+          ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.people_rounded, size: 64, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text('No customers yet', style: TextStyle(fontSize: 16, color: Colors.grey.shade400, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 8),
-                  Text('Tap + to register a customer', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  CircularProgressIndicator(color: Color(0xFF1A237E)),
+                  SizedBox(height: 16),
+                  Text('Loading customers...', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: store.customers.length,
-              itemBuilder: (_, i) {
-                final c = store.customers[i];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
-                  ),
-                  child: Row(
+          : store.customers.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: const Color(0xFF6A1B9A).withOpacity(0.1),
-                        child: Text(
-                          c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
-                          style: const TextStyle(color: Color(0xFF6A1B9A), fontWeight: FontWeight.w700, fontSize: 18),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.phone_rounded, size: 13, color: Colors.grey.shade400),
-                                const SizedBox(width: 4),
-                                Text(c.phone, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-                                const SizedBox(width: 12),
-                                Icon(Icons.location_on_rounded, size: 13, color: Colors.grey.shade400),
-                                const SizedBox(width: 4),
-                                Text(c.location, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => store.removeCustomer(c.id),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(Icons.delete_rounded, color: Colors.red.shade400, size: 18),
-                        ),
-                      ),
+                      Icon(Icons.people_rounded, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text('No customers yet', style: TextStyle(fontSize: 16, color: Colors.grey.shade400, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 8),
+                      Text('Tap + to register a customer', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
                     ],
                   ),
-                );
-              },
-            ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: store.customers.length,
+                  itemBuilder: (_, i) {
+                    final c = store.customers[i];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: const Color(0xFF6A1B9A).withOpacity(0.1),
+                            child: Text(
+                              c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Color(0xFF6A1B9A), fontWeight: FontWeight.w700, fontSize: 18),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.phone_rounded, size: 13, color: Colors.grey.shade400),
+                                    const SizedBox(width: 4),
+                                    Text(c.phone, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                                    const SizedBox(width: 12),
+                                    Icon(Icons.location_on_rounded, size: 13, color: Colors.grey.shade400),
+                                    const SizedBox(width: 4),
+                                    Text(c.location, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              await store.removeCustomer(c.id);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.delete_rounded, color: Colors.red.shade400, size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddDialog(context),
         icon: const Icon(Icons.person_add_rounded),
